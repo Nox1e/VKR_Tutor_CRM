@@ -1,0 +1,123 @@
+/* FullCalendar theme bridge — maps FC's CSS variables onto the shadcn/Tailwind HSL tokens. */
+.calendar-wrapper .fc {
+  --fc-border-color: hsl(var(--border));
+  --fc-page-bg-color: hsl(var(--card));
+  --fc-neutral-bg-color: hsl(var(--muted));
+  --fc-neutral-text-color: hsl(var(--muted-foreground));
+  --fc-today-bg-color: hsl(var(--primary) / 0.06);
+  --fc-now-indicator-color: hsl(var(--destructive));
+  --fc-button-bg-color: hsl(var(--secondary));
+  --fc-button-border-color: hsl(var(--border));
+  --fc-button-text-color: hsl(var(--secondary-foreground));
+  --fc-button-hover-bg-color: hsl(var(--muted));
+  --fc-button-hover-border-color: hsl(var(--border));
+  --fc-button-active-bg-color: hsl(var(--primary));
+  --fc-button-active-border-color: hsl(var(--primary));
+  --fc-event-selected-overlay-color: hsl(var(--primary) / 0.15);
+  font-family: inherit;
+}
+
+.calendar-wrapper .fc .fc-toolbar-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.calendar-wrapper .fc .fc-button {
+  box-shadow: none;
+  font-weight: 500;
+  text-transform: none;
+  padding: 0.375rem 0.75rem;
+  font-size: 0.875rem;
+  border-radius: calc(var(--radius) - 2px);
+}
+
+.calendar-wrapper .fc .fc-button-primary:not(:disabled).fc-button-active,
+.calendar-wrapper .fc .fc-button-primary:not(:disabled):active {
+  color: hsl(var(--primary-foreground));
+}
+
+.calendar-wrapper .fc .fc-col-header-cell-cushion {
+  padding: 0.5rem 0.25rem;
+  color: hsl(var(--muted-foreground));
+  font-weight: 500;
+  font-size: 0.8rem;
+  text-transform: capitalize;
+}
+
+.calendar-wrapper .fc .fc-timegrid-slot-label-cushion {
+  color: hsl(var(--muted-foreground));
+  font-size: 0.75rem;
+}
+
+.calendar-wrapper .fc .fc-event {
+  border-radius: 6px;
+  padding: 2px 6px;
+  font-size: 0.8rem;
+  line-height: 1.2;
+  cursor: grab;
+  border-left-width: 3px;
+}
+
+.calendar-wrapper .fc .fc-event:active {
+  cursor: grabbing;
+}
+
+.calendar-wrapper .fc .fc-event .fc-event-main {
+  padding: 0;
+}
+
+.calendar-wrapper .fc .fc-event-time {
+  font-weight: 400;
+  font-size: 0.75rem;
+  opacity: 0.9;
+}
+
+.calendar-wrapper .fc .fc-event-title {
+  font-weight: 400;
+}
+
+.calendar-wrapper .fc .fc-timegrid-now-indicator-line {
+  border-width: 2px 0 0;
+}
+
+/* Past/completed lessons: keep the base colour but visually recede. */
+.calendar-wrapper .fc .fc-event.fc-event--completed {
+  opacity: 0.55;
+}
+.calendar-wrapper .fc .fc-event.fc-event--completed:hover {
+  opacity: 0.85;
+}
+
+/* Lessons without an attached preparation render on a pale bg via inline
+ * style; keep the time readable against the light backdrop. */
+.calendar-wrapper .fc .fc-event.fc-event--no-prep .fc-event-time {
+  color: hsl(215 15% 40%);
+}
+
+/* Warning outline for lessons where the paid balance is insufficient to
+ * cover this lesson. */
+.calendar-wrapper .fc .fc-event.fc-event--no-balance {
+  box-shadow: 0 0 0 1.5px hsl(28 85% 55%);
+  z-index: 1;
+}
+
+.calendar-wrapper .fc .fc-timegrid-now-indicator-arrow {
+  display: none;
+}
+
+.calendar-wrapper .fc .fc-scrollgrid {
+  border-radius: var(--radius);
+}
+
+/* Template mode: soft warning-tinted background to visually signal "editing template" */
+.calendar-wrapper--template .fc {
+  --fc-page-bg-color: hsl(38 92% 98%);
+  --fc-today-bg-color: transparent;
+}
+
+.calendar-wrapper--template .fc .fc-col-header-cell-cushion {
+  text-transform: capitalize;
+  color: hsl(var(--foreground));
+  font-weight: 600;
+}
