@@ -1,0 +1,29 @@
+# Local Postgres for development.
+#
+# Usage (from repo root):
+#   docker compose -f deploy/docker-compose.dev.yml up -d
+#   docker compose -f deploy/docker-compose.dev.yml down
+#
+# Production compose (with backend, caddy, etc.) is added in Phase 5.
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: tutor-clockwork-db-dev
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: tutor
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata-dev:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app -d tutor"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  pgdata-dev:

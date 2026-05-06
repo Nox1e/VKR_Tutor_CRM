@@ -1,0 +1,42 @@
+# Tutor Clockwork — Caddy config.
+#
+# Production: APP_DOMAIN is your real FQDN (e.g. tutor.example.com).
+#   Caddy provisions a Let's Encrypt cert for it automatically.
+# Local prod-stack test: set APP_DOMAIN=localhost — Caddy issues an internal
+#   self-signed cert so you can hit https://localhost without LE rate limits.
+
+{
+	# Where Let's Encrypt sends expiry warnings. Required for real domains.
+	email {$ACME_EMAIL}
+}
+
+{$APP_DOMAIN} {
+	encode zstd gzip
+
+	# Security headers. The CSP is intentionally relaxed for an internal SaaS;
+	# tighten later if/when we add a stricter style/script policy.
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+		# Drop the Server header so we don't leak the Caddy version.
+		-Server
+	}
+
+	# Reverse-proxy the backend. The frontend talks to /api, never directly
+	# to backend:4000 from the browser.
+	@api path /api/*
+	handle @api {
+		reverse_proxy backend:4000
+	}
+
+	# Everything else is the SPA. try_files makes client-side routing work
+	# (e.g. /students/123 falls back to index.html).
+	handle {
+		root * /srv/dist
+		try_files {path} /index.html
+		file_server
+	}
+}

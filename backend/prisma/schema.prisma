@@ -1,0 +1,380 @@
+// Prisma schema for the multi-tenant SaaS migration.
+//
+// Conventions (see memory-bank/specs/saas-migration.md):
+//  - DB column names stay snake_case via @map / @@map. TS clients see camelCase.
+//  - Every domain table carries `userId` with ON DELETE CASCADE from `User`.
+//  - String IDs (e.g. "student_<ts>_<rand>") are kept for domain entities.
+//    `User`, `RefreshToken` and `InviteCode.createdBy` use Int autoincrement.
+//  - Partial unique index `idx_one_item_per_lesson` is added in a follow-up
+//    migration with raw SQL (Prisma cannot express partial indexes natively).
+
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x", "debian-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           Int      @id @default(autoincrement())
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  role         String   @default("tutor")
+  status       String   @default("active")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @default(now()) @updatedAt @map("updated_at")
+
+  students         Student[]
+  lessons          Lesson[]
+  scheduledLessons ScheduledLesson[]
+  preparations     Preparation[]
+  homeworks        Homework[]
+  trials           Trial[]
+  studentTrials    StudentTrial[]
+  paymentHistory   PaymentHistory[]
+  trajectoryItems  TrajectoryItem[]
+  refreshTokens    RefreshToken[]
+  invitesCreated   InviteCode[]
+  preparationTags  PreparationTag[]
+  homeworkTags     HomeworkTag[]
+  trialTags        TrialTag[]
+  notificationStates NotificationState[]
+
+  @@map("users")
+}
+
+model RefreshToken {
+  jti       String    @id
+  userId    Int       @map("user_id")
+  issuedAt  DateTime  @default(now()) @map("issued_at")
+  expiresAt DateTime  @map("expires_at")
+  revokedAt DateTime? @map("revoked_at")
+  userAgent String?   @map("user_agent")
+  ipAddress String?   @map("ip_address")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("refresh_tokens")
+}
+
+model InviteCode {
+  code      String    @id
+  createdBy Int?      @map("created_by")
+  maxUses   Int       @default(1) @map("max_uses")
+  usedCount Int       @default(0) @map("used_count")
+  expiresAt DateTime? @map("expires_at")
+  note      String?
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  creator User? @relation(fields: [createdBy], references: [id], onDelete: SetNull)
+
+  @@map("invite_codes")
+}
+
+model Student {
+  id                 String   @id
+  userId             Int      @map("user_id")
+  name               String
+  telegram           String?
+  phone              String?
+  birthDate          String?  @map("birth_date")
+  timezone           String?
+  parentName         String?  @map("parent_name")
+  parentTelegram     String?  @map("parent_telegram")
+  parentPhone        String?  @map("parent_phone")
+  hourlyRate         Float?   @map("hourly_rate")
+  lessonsPerMonth    Int?     @map("lessons_per_month")
+  lessonDuration     Int?     @map("lesson_duration")
+  paymentType        String?  @map("payment_type")
+  monthlyRevenue     Float?   @map("monthly_revenue")
+  acquisitionCost    Float?   @map("acquisition_cost")
+  acquisitionSource  String?  @map("acquisition_source")
+  photoData          String?  @map("photo_data")
+  paidLessonsCount   Int      @default(0) @map("paid_lessons_count")
+  manualTaskProgress Json?    @map("manual_task_progress")
+  learningTrajectory String?  @map("learning_trajectory")
+  color              String?
+  createdAt          DateTime @default(now()) @map("created_at")
+
+  user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lessons          Lesson[]
+  scheduledLessons ScheduledLesson[]
+  studentTrials    StudentTrial[]
+  paymentHistory   PaymentHistory[]
+  trajectoryItems  TrajectoryItem[]
+
+  @@index([userId])
+  @@map("students")
+}
+
+model Lesson {
+  id            String   @id
+  userId        Int      @map("user_id")
+  studentId     String   @map("student_id")
+  startTime     DateTime @map("start_time")
+  endTime       DateTime @map("end_time")
+  meetLink      String?  @map("meet_link")
+  comment       String?
+  isScheduled   Boolean  @default(false) @map("is_scheduled")
+  status        String   @default("planned")
+  preparationId String?  @map("preparation_id")
+  homeworkId    String?  @map("homework_id")
+  isPaid        Boolean  @default(false) @map("is_paid")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  student         Student          @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  preparation     Preparation?     @relation(fields: [preparationId], references: [id], onDelete: SetNull)
+  homework        Homework?        @relation(fields: [homeworkId], references: [id], onDelete: SetNull)
+  intervals       Interval[]
+  trajectoryItems TrajectoryItem[]
+
+  @@index([userId])
+  @@index([userId, startTime])
+  @@index([studentId])
+  @@map("lessons")
+}
+
+model Interval {
+  id        String    @id
+  lessonId  String    @map("lesson_id")
+  startTime DateTime  @map("start_time")
+  endTime   DateTime? @map("end_time")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  lesson Lesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  @@index([lessonId])
+  @@map("intervals")
+}
+
+model ScheduledLesson {
+  id            String   @id
+  userId        Int      @map("user_id")
+  studentId     String   @map("student_id")
+  dayOfWeek     Int      @map("day_of_week")
+  startTime     String   @map("start_time")
+  endTime       String   @map("end_time")
+  meetLink      String?  @map("meet_link")
+  comment       String?
+  preparationId String?  @map("preparation_id")
+  homeworkId    String?  @map("homework_id")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  student     Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  preparation Preparation? @relation(fields: [preparationId], references: [id], onDelete: SetNull)
+  homework    Homework?    @relation(fields: [homeworkId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([userId, dayOfWeek])
+  @@index([studentId])
+  @@map("scheduled_lessons")
+}
+
+model Preparation {
+  id         String   @id
+  userId     Int      @map("user_id")
+  taskNumber String   @map("task_number")
+  method     String
+  title      String
+  message    String
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @default(now()) @updatedAt @map("updated_at")
+
+  user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lessons          Lesson[]
+  scheduledLessons ScheduledLesson[]
+  trajectoryItems  TrajectoryItem[]
+  tags             PreparationTag[]
+
+  @@index([userId])
+  @@map("preparations")
+}
+
+model Homework {
+  id         String   @id
+  userId     Int      @map("user_id")
+  taskNumber String   @map("task_number")
+  title      String
+  link       String?
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @default(now()) @updatedAt @map("updated_at")
+
+  user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lessons          Lesson[]
+  scheduledLessons ScheduledLesson[]
+  trajectoryItems  TrajectoryItem[]
+  tags             HomeworkTag[]
+
+  @@index([userId])
+  @@map("homeworks")
+}
+
+model Trial {
+  id              String   @id
+  userId          Int      @map("user_id")
+  orderNumber     Int      @map("order_number")
+  difficultyLevel String   @map("difficulty_level")
+  title           String
+  link            String
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @default(now()) @updatedAt @map("updated_at")
+
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  studentTrials StudentTrial[]
+  tags          TrialTag[]
+
+  @@index([userId])
+  @@map("trials")
+}
+
+model PreparationTag {
+  id        String   @id
+  userId    Int      @map("user_id")
+  name      String
+  color     String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  preparations Preparation[]
+
+  @@unique([userId, name])
+  @@index([userId])
+  @@map("preparation_tags")
+}
+
+model HomeworkTag {
+  id        String   @id
+  userId    Int      @map("user_id")
+  name      String
+  color     String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  homeworks Homework[]
+
+  @@unique([userId, name])
+  @@index([userId])
+  @@map("homework_tags")
+}
+
+model TrialTag {
+  id        String   @id
+  userId    Int      @map("user_id")
+  name      String
+  color     String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  trials Trial[]
+
+  @@unique([userId, name])
+  @@index([userId])
+  @@map("trial_tags")
+}
+
+// Persistent read-state for computed notifications. Each rule emits
+// notifications with a stable `notificationId` (e.g. "low-balance:<studentId>");
+// rows here remember which the user has dismissed/read. Notification bodies
+// are NOT stored — they are recomputed by the rule registry on every fetch.
+model NotificationState {
+  id             String    @id
+  userId         Int       @map("user_id")
+  notificationId String    @map("notification_id")
+  readAt         DateTime? @map("read_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, notificationId])
+  @@index([userId])
+  @@map("notification_states")
+}
+
+model StudentTrial {
+  id            String    @id
+  userId        Int       @map("user_id")
+  studentId     String    @map("student_id")
+  trialId       String    @map("trial_id")
+  deadline      DateTime
+  comment       String?
+  complications String?
+  status        String    @default("assigned")
+  completedAt   DateTime? @map("completed_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @default(now()) @updatedAt @map("updated_at")
+
+  user    User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  student Student       @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  trial   Trial         @relation(fields: [trialId], references: [id], onDelete: Cascade)
+  results TrialResult[]
+
+  @@index([userId])
+  @@index([studentId])
+  @@index([trialId])
+  @@map("student_trials")
+}
+
+model TrialResult {
+  id             String   @id
+  studentTrialId String   @map("student_trial_id")
+  taskScores     Json     @map("task_scores")
+  primaryScore   Int      @map("primary_score")
+  secondaryScore Int      @map("secondary_score")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @default(now()) @updatedAt @map("updated_at")
+
+  studentTrial StudentTrial @relation(fields: [studentTrialId], references: [id], onDelete: Cascade)
+
+  @@index([studentTrialId])
+  @@map("trial_results")
+}
+
+model PaymentHistory {
+  id           String   @id
+  userId       Int      @map("user_id")
+  studentId    String   @map("student_id")
+  lessonsCount Int      @map("lessons_count")
+  amount       Float
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([studentId])
+  @@map("payment_history")
+}
+
+model TrajectoryItem {
+  id                 String    @id
+  userId             Int       @map("user_id")
+  studentId          String    @map("student_id")
+  preparationId      String    @map("preparation_id")
+  homeworkId         String?   @map("homework_id")
+  position           Int
+  status             String    @default("queued")
+  assignedToLessonId String?   @map("assigned_to_lesson_id")
+  assignedAt         DateTime? @map("assigned_at")
+  consumedAt         DateTime? @map("consumed_at")
+  createdAt          DateTime  @default(now()) @map("created_at")
+
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  student     Student     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  preparation Preparation @relation(fields: [preparationId], references: [id], onDelete: Cascade)
+  homework    Homework?   @relation(fields: [homeworkId], references: [id], onDelete: SetNull)
+  lesson      Lesson?     @relation(fields: [assignedToLessonId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([studentId, status])
+  @@index([studentId, position])
+  // Partial unique index `idx_one_item_per_lesson` (only when assignedToLessonId IS NOT NULL)
+  // is added by a follow-up migration with raw SQL — Prisma can't express it natively.
+  @@map("trajectory_items")
+}
